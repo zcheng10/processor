@@ -8,27 +8,6 @@ The current integrated/runnable processor lives in [`Processor/`](Processor/). T
 
 The processor follows the classic 5-stage RISC pipeline:
 
-```mermaid
-flowchart LR
-    IF["IF: PC, instruction memory, PC+4, branch prediction"]
-    IFID["IF/ID pipeline register"]
-    ID["ID: decode, register file, control, immediate generation"]
-    IDEX["ID/EX pipeline register"]
-    EX["EX: ALU, forwarding muxes, branch compare, target generation"]
-    EXMEM["EX/MEM pipeline register"]
-    MEM["MEM: data memory load/store"]
-    MEMWB["MEM/WB pipeline register"]
-    WB["WB: result mux, register writeback"]
-
-    IF --> IFID --> ID --> IDEX --> EX --> EXMEM --> MEM --> MEMWB --> WB
-    WB -. "writeback/bypass" .-> ID
-    EXMEM -. "forward ALU result" .-> EX
-    MEMWB -. "forward writeback result" .-> EX
-    EX -. "mispredict redirect" .-> IF
-```
-
-At a high level:
-
 - The fetch stage reads the next instruction and asks the branch predictor for the next PC.
 - The decode stage extracts fields, reads registers, generates immediates, and produces control signals.
 - The execute stage performs ALU operations, branch comparisons, JAL/JALR target generation, and misprediction detection.
@@ -47,27 +26,7 @@ The design supports the main RV32I integer datapath instructions:
 - Jumps: `JAL`, `JALR`
 - Upper immediates: `LUI`, `AUIPC`
 
-`ECALL` is used by the benchmark testbench as a halt marker. A full trap/CSR/privileged architecture is not implemented. `FENCE`, `ECALL`, and `EBREAK` are treated as simple no-op/control markers rather than real system instructions.
-
-## Major modules
-
-| File | Purpose |
-|---|---|
-| [`Processor/processor.sv`](Processor/processor.sv) | Top-level 5-stage pipeline integration, PC selection, forwarding, hazard signals, performance counters |
-| [`Processor/PC.sv`](Processor/PC.sv) | Program counter with reset and stall support |
-| [`Processor/IMEM.sv`](Processor/IMEM.sv) | Instruction memory; loads [`Processor/program.hex`](Processor/program.hex) |
-| [`Processor/control.sv`](Processor/control.sv) | Main RV32I decode/control generation |
-| [`Processor/register.sv`](Processor/register.sv) | 32-entry register file with x0 protection and same-cycle writeback bypass |
-| [`Processor/ImmGen.sv`](Processor/ImmGen.sv) | I/S/B/J/U immediate generation |
-| [`Processor/ALU.sv`](Processor/ALU.sv) | Integer ALU, signed/unsigned comparisons, shift operations |
-| [`Processor/hazard.sv`](Processor/hazard.sv) | Load-use stall, forwarding selection, branch/jump flush control |
-| [`Processor/branchpredictor.sv`](Processor/branchpredictor.sv) | 1024-entry 2-bit saturating-counter conditional branch predictor |
-| [`Processor/dmem.sv`](Processor/dmem.sv) | Byte-addressable data memory with RV32I load/store width handling |
-| [`Processor/IFID.sv`](Processor/IFID.sv), [`Processor/IDEX.sv`](Processor/IDEX.sv), [`Processor/EXMEM.sv`](Processor/EXMEM.sv), [`Processor/MEMWB.sv`](Processor/MEMWB.sv) | Pipeline registers |
-| [`Processor/processor_tb.sv`](Processor/processor_tb.sv) | Bubble-sort benchmark testbench and result checker |
-| [`Processor/bubble_sort.s`](Processor/bubble_sort.s) | Human-readable assembly source for the benchmark |
-| [`Processor/program.hex`](Processor/program.hex) | Machine-code version of the bubble-sort benchmark |
-| [`Processor/run_benchmark.ps1`](Processor/run_benchmark.ps1) | Icarus Verilog benchmark runner |
+`ECALL` is used by the benchmark testbench as a halt marker. `FENCE`, `ECALL`, and `EBREAK` are treated as simple no-op/control markers.
 
 ## Pipeline behavior
 
@@ -123,8 +82,6 @@ The data memory is byte-addressable and supports RV32I byte, halfword, and word 
 - unsigned loads: `LBU`, `LHU`
 - word load: `LW`
 - byte/halfword/word stores: `SB`, `SH`, `SW`
-
-This is more complete than a word-only memory, although it can cost more muxing/logic in synthesis.
 
 ### Writeback
 
@@ -186,8 +143,8 @@ The branch predictor in [`Processor/branchpredictor.sv`](Processor/branchpredict
 
 The predictor output is a predicted next PC. The pipeline stores that predicted PC in the IF/ID and ID/EX registers so execute can compare it against the true next PC.
 
-Tradeoff: the predictor improves loop and jump behavior, but the current hash logic is more expensive than simply indexing with `pc[11:2]`. For a higher Fmax, replacing the hash with a simpler XOR or direct index is likely beneficial. The loop-exit predictor also adds small per-entry state to reduce repeated loop-exit misses.
-
+<!--Tradeoff: the predictor improves loop and jump behavior, but the current hash logic is more expensive than simply indexing with `pc[11:2]`. For a higher Fmax, replacing the hash with a simpler XOR or direct index is likely beneficial. The loop-exit predictor also adds small per-entry state to reduce repeated loop-exit misses.
+-->
 ## Performance counters
 
 The top-level processor exposes hardware counters:
@@ -269,6 +226,7 @@ Tradeoff: byte lane selection and sign extension add logic compared with a simpl
 
 ## Running the benchmark
 
+TODO: synthesization with Quartus and simulation with Modelsim/Questasim
 ### Requirements
 
 - Icarus Verilog with SystemVerilog support:
@@ -307,26 +265,6 @@ The script compiles the integrated processor and runs [`Processor/processor_tb.s
 
 The benchmark testbench also asserts that measured IPC is at least `0.900000`.
 
-### Expected output
-
-The latest benchmark run produced:
-
-```text
-bubble_sort benchmark passed
-cycles=416
-retired_instructions=381
-ipc=0.915865
-cpi=1.091864
-load_use_stalls=0
-redirect_flushes=15
-branches=89
-branches_taken=25
-branch_mispredicts=15
-branch_accuracy=0.831461
-branch_mispredict_rate=0.168539
-jumps=44
-jump_mispredicts=0
-```
 
 ### Viewing waveforms
 
@@ -337,80 +275,3 @@ gtkwave .\Processor\bubble_sort.vcd
 ```
 
 ## Benchmark results and interpretation
-
-Measured bubble-sort result:
-
-| Metric | Value |
-|---|---:|
-| Cycles | 416 |
-| Retired instructions | 381 |
-| IPC | 0.915865 |
-| CPI | 1.091864 |
-| Load-use stall cycles | 0 |
-| Redirect flushes | 15 |
-| Branches | 89 |
-| Branches taken | 25 |
-| Branch mispredicts | 15 |
-| Branch accuracy | 83.1461% |
-| Jumps | 44 |
-| Jump mispredicts | 0 |
-
-The result is internally consistent:
-
-```text
-ideal-ish cycles ≈ retired instructions + pipeline fill/drain
-                 ≈ 381 + 5
-                 ≈ 386
-
-extra cycles     ≈ 416 - 386
-                 = 30
-
-measured hazard cost = 0 load-use stalls + 2 × 15 redirect flushes
-                     = 30
-```
-
-So the current IPC is now limited mostly by the remaining conditional-branch redirects.
-
-## Possible future optimizations
-
-The highest-impact remaining improvements are:
-
-1. Move branch resolution earlier.
-
-   Branches currently resolve in execute, so a miss costs two cycles. Resolving branches in decode could reduce that to one cycle.
-
-2. Add a BTB.
-
-   A branch target buffer would let fetch predict target PCs without decoding the branch immediate every time.
-
-3. Simplify the predictor index path.
-
-   Replacing the current hash/multiply with direct indexing, such as `pc[11:2]`, or a simple XOR index could improve Fmax.
-
-4. Synthesize the design.
-
-   IPC is only half the speed story. To report a resume-quality speed number, synthesize on a target FPGA/ASIC flow and compute:
-
-   ```text
-   effective MIPS = Fmax_MHz × IPC
-   ```
-
-## Resume-style summary
-
-The original measured baseline after adding counters was:
-
-```text
-Implemented a 5-stage pipelined RV32I processor in SystemVerilog with forwarding, load-use hazard detection, branch prediction, misprediction recovery, byte-addressable memory, and hardware performance counters; measured 0.690 IPC / 1.449 CPI on a bubble-sort benchmark in Icarus Verilog.
-```
-
-The current optimized summary is:
-
-```text
-Optimized a 5-stage RV32I processor to 0.916 IPC / 1.092 CPI on a bubble-sort benchmark by adding fetch-stage JAL prediction, MEM-to-EX load-result forwarding, loop-exit prediction, and instruction scheduling.
-```
-
-After synthesis, add Fmax and MIPS:
-
-```text
-Achieved <Fmax> MHz and <Fmax × 0.916> MIPS effective throughput on an RV32I bubble-sort benchmark.
-```
