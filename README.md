@@ -1,8 +1,8 @@
 # 5-Stage Pipelined RV32I Processor
 
-This project is a SystemVerilog implementation of a 32-bit, 5-stage pipelined RISC-V processor targeting the base RV32I integer instruction set. The core includes instruction fetch, decode, execute, memory, and writeback stages, plus forwarding, load-use hazard handling, branch prediction, misprediction recovery, byte-addressable data memory, and hardware performance counters.
+This project is a SystemVerilog implementation of a 32-bit, 5-stage pipelined RISC-V processor targeting the base RV32I integer instruction set. The core includes instruction fetch, decode, execute, memory, and writeback stages, as well as forwarding, load-use hazard handling, branch prediction, misprediction recovery, data memory, and performance counters.
 
-The current integrated/runnable processor lives in [`Processor/`](Processor/). The root-level module folders contain the earlier separated module layout and related tests; for running the full processor and benchmark, use the self-contained files in [`Processor/`](Processor/).
+The current runnable processor is in [`Processor/`](Processor/). The root-level module folders contain the earlier separated module layout and related tests; to run the full processor and benchmark, use the files in [`Processor/`](Processor/).
 
 ## High-level architecture
 
